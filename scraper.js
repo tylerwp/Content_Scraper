@@ -30,9 +30,11 @@ checkDirectory("./data/", function(error) {
 var Xray = require('x-ray');
 var x = Xray();
 
-x('http://shirts4mike.com', 'ul.products', [{  
+x('http://shirts4mike.com', 'ul.products li', [{  
   url: 'a@href',
   image: 'img@src',
+  price:  x('a@href', '.price'),
+  title:  x('a@href', '.shirt-details h1')
 }])(function(err, result){
     console.log(result)
 });

@@ -9,6 +9,8 @@
   },
   "devDependencies": {},
   "scripts": {
+    "preinstall": "npm install jslint -g",
+    "lint":"jslint scraper.js --color --white --vars",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

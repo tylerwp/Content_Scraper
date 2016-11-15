@@ -1,127 +1,160 @@
-var fs = require('fs');
-var json2csv = require('json2csv');
+(function () {
 
-//Check for data folder, create folder if it doesn't already exist.
-function checkDirectory(directory, callback) {
-    fs.stat(directory, function (err, stats) {
-        //Check if error defined and the error code is "not exists"
-        if (err && err.errno === -4058) {
-            //Create the directory, call the callback.
-            fs.mkdir(directory, callback);
-        } else {
-            //just in case there was a different error:
-            callback(err)
-        }
-    });
-}
+    "use strict";
 
-checkDirectory("./data/", function (error) {
-    if (error) {
-        console.log("Error:", error);
-        //log error
-    } else {
-        // run x-ray content scraper
-        contentScraper();
 
-    }
-});
-
-function contentScraper() {
-
-    //https://runkit.com/npm/x-ray
+    var fs = require('fs');
+    var json2csv = require('json2csv');
+    // https://www.npmjs.com/package/json2csv
+    // I chose json2csv as it was well documented and as of 3.7.1 it was recently updated.
 
     var Xray = require('x-ray');
-    var x = Xray();
+    // https://www.npmjs.com/package/x-ray
+    // After trying several others and running into issues I found x-ray to work and do what was needed and was also pleased to see many stars on Github for it.
 
-    x('http://shirts4mike.com', 'ul.products li', [{
-        url: 'a@href',
-        image: 'img@src',
-        price: x('a@href', '.price'),
-        title: x('a@href', '.shirt-details h1')
-    }])(function (err, result) {
-        //Create CSV 
-        if (err) {
-            // display message, write to log file
-            var error = err.code;
+
+    /**
+    * Create error log then write error to log file.
+    *
+    * @param {String} errorMessage - Error message to log in the file. 
+    * 
+    */
+    function Logerrors(errorMessage) {
+
+        var now = new Date();
+
+        var message = '[' + now.toString() + '] ' + errorMessage + ' \r\n';
+        fs.appendFile('./scraper-error.log', message, function (err) {
+            if (err) {
+                console.log(err.message);
+            }
+        });
+
+    }
+
+
+    /**
+    * Formats results from contentScraper function into JSON.
+    *
+    * @param {Array} result - An Array of Objects from Xray scraper. 
+    * 
+    */
+    function resultsJSONFormatter(result) {
+
+        var json = [];
+
+        // Title, Price, ImageURL, URL and Time
+        result.forEach(function (entry) {
+
+            entry.title = entry.title.replace(entry.price, '').trim(); // remove price from title
+            var now = new Date();
+            entry.date = now.toString(); // add date to object
+            //{name: name, goals: goals[name]}
+            json.push({ 'Title': entry.title, 'Price': entry.price, 'ImageURL': entry.image, 'URL': entry.url, 'Time': entry.date });
+        });
+        return json;
+    }
+
+
+
+    /**
+    * Creates a CSV file and save it to a folder titled data.
+    *
+    * @param {Array} result - An Array of Objects from Xray scraper. 
+    * 
+    */
+    function createCSV(result) {
+
+        // create new CSV with date name. eg. 2016-01-29.csv
+        // https://www.npmjs.com/package/json2csv - https://github.com/zemirco/json2csv
+        var today = new Date();
+
+        var filename = today.getFullYear().toString() + '-' + today.getMonth().toString() + '-' + today.getDate().toString() + '.csv';
+
+
+        // reorder results and convert to JSON object
+        var JSONresults = resultsJSONFormatter(result);
+        // write to CSV file
+        var fields = ['Title', 'Price', 'ImageURL', 'URL', 'Time'];
+        var csv = json2csv({ data: JSONresults, fields: fields });
+
+        fs.writeFile('data/' + filename, csv, 'utf8', function (err) {
+            if (err) {
+                console.log(err.message);
+                Logerrors(err.message);
+            } else {
+                console.log('file saved');
+            }
+        });
+
+        // save/overwite csv file.
+
+    }
+
+
+    /**
+    * Check for data folder, create folder if it doesn't already exist.
+    *
+    * @param {String} directory - path to folder.
+    * @param {Function} callback  
+    */
+    function checkDirectory(directory, callback) {
+        fs.stat(directory, function (err) {
+            //Check if error defined and the error is ENOENT (No such file or directory)
+            if (err && err.code === 'ENOENT') {
+                //Create the directory, call the callback.
+                fs.mkdir(directory, callback);
+            } else {
+                //just in case there was a different error:
+                callback(err);
+                Logerrors(err.message);
+            }
+        });
+    }
+
+
+
+    /**
+    * Scrapes the content of shirts4mike.com and creates a CSV file from the results
+    * 
+    */
+    function contentScraper() {
+
+        var x = new Xray();
+
+        x('http://shirts4mike.com', 'ul.products li', [{
+            url: 'a@href',
+            image: 'img@src',
+            price: x('a@href', '.price'),
+            title: x('a@href', '.shirt-details h1')
+        }])(function (err, result) {
+            //Create CSV
+            if (err) {
+                // display message, write to log file
+                var error = err.message;
+                console.log(error);
+                Logerrors(error);
+            } else {
+                createCSV(result);
+            }
+        });
+
+    }
+
+
+
+    //Check directory and run content scraper
+    checkDirectory("./data/", function (error) {
+        if (error) {
+            console.log("Error:", error);
+            //log error
         } else {
-            createCSV(result);
+            // run x-ray content scraper
+            contentScraper();
+
         }
     });
 
-}
+} ());
 
 
-
-
-function createCSV(result) {
-
-    // create new CSV with date name. eg. 2016-01-29.csv
-    // https://www.npmjs.com/package/json2csv - https://github.com/zemirco/json2csv
-    var today = new Date();
-
-    var filename = today.getFullYear().toString() + '-' + today.getMonth().toString() + '-' + today.getDate().toString() + '.csv';
-
-
-    // reorder results and convert to JSON object
-    var JSONresults = resultsJSONFormatter(result);
-    // write to CSV file
-    var fields = ['Title', 'Price', 'ImageURL', 'URL', 'Time'];
-    var csv = json2csv({ data: JSONresults, fields: fields });
-
-    fs.writeFile('data/' + filename, csv, 'utf8', function (err) {
-        if (err) throw err;
-        console.log('file saved');
-    });
-
-    // save/overwite csv file.
-
-}
-
-
-
-
-function resultsJSONFormatter(result) {
-
-    var json = [];
-
-    // Title, Price, ImageURL, URL and Time
-    result.forEach(function (entry) {
-
-        entry.title = entry.title.replace(entry.price, '').trim(); // remove price from title
-        var now = new Date();
-        entry.date = now.toString(); // add date to object
-        //{name: name, goals: goals[name]}
-        json.push({ 'Title': entry.title, 'Price': entry.price, 'ImageURL': entry.image, 'URL': entry.url, 'Time': entry.date });
-    });
-    return json;
-}
-
-
-
-/*
--- Create a scraper.js file. This should be the file that runs every day.
-
--- The scraper should create a folder called data, if a folder called data doesn't already exist (it should check for the folder).
-
--- The information from the site you scrape should be stored in a CSV file named after today's date: 2016-01-29.csv.
-
-Use a third party npm package to scrape content from the site. As part of this assignment, you'll need to explain why you chose this package.
-
--- The scraper should be able to visit the website http://shirts4mike.com and follow links to all t-shirts.
-
--- The scraper should get the price, title, url and image url from the product page and save it in the CSV.
-
-Use a third party npm package to create an CSV file. As part of this assignment, you’ll need to explain why you chose this package.
-
--- The column headers should be in this order: Title, Price, ImageURL, URL and Time. ‘Time’ should be the time the scrape happened. The columns must be in order (if we were really populating a database, the columns would need to be in order correctly populate the database).
-
-If the site is down, an error message describing the issue should appear in the console. You can test your error by disabling the wifi on your computer.
-
--- If the data file for today’s date already exists, your program should overwrite the file.
-
-Don't forget to document your code!
-
-Use a linting tool like ESLint to check your code for syntax errors and to ensure general code quality. You should be able to run npm run lint to check your code.
-
-When an error occurs log it to a file scraper-error.log . It should append to the bottom of the file with a time stamp and error e.g. [Tue Feb 16 2016 10:02:12 GMT-0800 (PST)] <error message>
-*/

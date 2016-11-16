@@ -1,5 +1,5 @@
 var Xray = require('x-ray');
-var shirtsHomeResults = null;
+var shirtsResults = null;
 var shirtsPageResults = null;
 var x = new Xray();
 x('http://shirts4mike.com', {
@@ -33,8 +33,30 @@ x('http://shirts4mike.com', {
         console.log(error);
 
     } else {
-        shirtsHomeResults = result.HomepageShirts;
+        shirtsResults = result.HomepageShirts;
         shirtsPageResults = result.shirtsMenu[0].shirtsLink.shirtsPage;
+
+        // Loop through Shirt page results and add to shirtsResults filtering out any duplicates. 
+        Object.keys(shirtsPageResults).forEach(function(o,ob){
+            var test = shirtsPageResults[ob];
+            if(!filterShirts(shirtsPageResults[ob],shirtsResults)){
+                shirtsResults.push(shirtsPageResults[ob]);
+            }
+        });
+        
 
     }
 });
+
+
+function filterShirts(shirt,shirtsResults){
+    var hasShirt = false;
+     Object.keys(shirtsResults).forEach(function(o,ob){
+            if(shirtsResults[ob].title == shirt.title){
+                hasShirt = true;           
+            }
+        });
+        return hasShirt;
+}
+
+

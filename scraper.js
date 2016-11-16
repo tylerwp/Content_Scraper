@@ -7,10 +7,13 @@
     var json2csv = require('json2csv');
     // https://www.npmjs.com/package/json2csv
     // I chose json2csv as it was well documented and as of 3.7.1 it was recently updated.
+    // I particularly like the feature of adding column title from a separate array.
 
     var Xray = require('x-ray');
     // https://www.npmjs.com/package/x-ray
     // After trying several others and running into issues I found x-ray to work and do what was needed and was also pleased to see many stars on Github for it.
+    // The documentation could be improved as there was a lot of trial and error to see how it could fit my needs.
+
 
 
     /**
@@ -126,7 +129,7 @@
             url: 'a@href',
             image: 'img@src',
             price: x('a@href', '.price'),
-            title: x('a@href', '.shirt-details h1')
+            title: x('a@href', '.shirt-details h1')            
         }])(function (err, result) {
             //Create CSV
             if (err) {

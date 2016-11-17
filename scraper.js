@@ -22,7 +22,7 @@
     * @param {String} errorMessage - Error message to log in the file. 
     * 
     */
-    function Logerrors(errorMessage) {
+    function logErrors(errorMessage) {
 
         var now = new Date();
 
@@ -84,9 +84,9 @@
         fs.writeFile('data/' + filename, csv, 'utf8', function (err) {
             if (err) {
                 console.log(err.message);
-                Logerrors(err.message);
+                logErrors(err.message);
             } else {
-                console.log('file saved');
+                console.log('CSV file saved.');
             }
         });
 
@@ -102,20 +102,39 @@
     * @param {Function} callback  
     */
     function checkDirectory(directory, callback) {
-        fs.stat(directory, function (err) {
-            //Check if error defined and the error is ENOENT (No such file or directory)
-            if (err && err.code === 'ENOENT') {
-                //Create the directory, call the callback.
-                fs.mkdir(directory, callback);
-            } else {
-                //just in case there was a different error:
-                callback(err);
-                Logerrors(err.message);
+        fs.mkdir(directory, function (err) {
+            if (err) {
+                if(err.code === 'EEXIST'){
+                    console.log("Directory already created.");  
+                    callback('EEXIST');        
+                }else{
+                    //Something went wrong
+                    callback(err);
+                }      
+            }else{
+                //directory created
+                console.log("New directory created.");
+                callback('DONE');
             }
         });
     }
 
-
+    /**
+    * Check if shirt already exists within shirtsResults Array and returns boolean
+    *
+    * @param {Object} shirt - Objects of shirt details. 
+    * @param {Array} shirtsResults - An Array of Objects from Xray scraper. 
+    * 
+    */
+    function filterShirts(shirt, shirtsResults) {
+        var hasShirt = false;
+        Object.keys(shirtsResults).forEach(function (ob) {
+            if (shirtsResults[ob].title === shirt.title) {
+                hasShirt = true;
+            }
+        });
+        return hasShirt;
+    }
 
     /**
     * Scrapes the content of shirts4mike.com and creates a CSV file from the results
@@ -123,38 +142,69 @@
     */
     function contentScraper() {
 
+        var shirtsResults = null;
+        var shirtsPageResults = null;
         var x = new Xray();
+        x('http://shirts4mike.com', {     
 
-        x('http://shirts4mike.com', 'ul.products li', [{
-            url: 'a@href',
-            image: 'img@src',
-            price: x('a@href', '.price'),
-            title: x('a@href', '.shirt-details h1')            
-        }])(function (err, result) {
+            shirtsMenu: x('li.shirts', [{
+                shirtsLink: x('a@href', {
+                    shirtsPage: x('ul.products li', [{
+                        url: 'a@href',
+                        image: 'img@src',
+                        price: x('a@href', '.price'),
+                        title: x('a@href', '.shirt-details h1')
+                    }])
+
+                })
+            }]),
+            
+            HomepageShirts: x('ul.products li', [{
+                url: 'a@href',
+                image: 'img@src',
+                price: x('a@href', '.price'),
+                title: x('a@href', '.shirt-details h1')
+            }])
+            
+        })(function (err, result) {
             //Create CSV
             if (err) {
                 // display message, write to log file
                 var error = err.message;
-                console.log(error);
-                Logerrors(error);
+                console.log('Content scraping aborted, there was an error:', error);
+                logErrors(error);
+
             } else {
-                createCSV(result);
+                shirtsResults = result.HomepageShirts;
+                shirtsPageResults = result.shirtsMenu[0].shirtsLink.shirtsPage;
+
+                // Loop through Shirt page results and add to shirtsResults filtering out any duplicates. 
+                Object.keys(shirtsPageResults).forEach(function (ob) {                    
+                    if (!filterShirts(shirtsPageResults[ob], shirtsResults)) {
+                        shirtsResults.push(shirtsPageResults[ob]);
+                    }
+                });
+
+                //shirtsResults to CSV
+                createCSV(shirtsResults);
             }
         });
+
 
     }
 
 
 
     //Check directory and run content scraper
-    checkDirectory("./data/", function (error) {
-        if (error) {
-            console.log("Error:", error);
-            //log error
-        } else {
+    checkDirectory("./data/", function (response) {
+        if (response === 'EEXIST' || response === 'DONE') {
             // run x-ray content scraper
-            contentScraper();
-
+            console.log("Running content scraper.");
+            contentScraper();           
+        } else {
+            //There was an error
+             console.log("Content scraping aborted, there was an error:", response.message);
+             logErrors( response.message);
         }
     });
 
